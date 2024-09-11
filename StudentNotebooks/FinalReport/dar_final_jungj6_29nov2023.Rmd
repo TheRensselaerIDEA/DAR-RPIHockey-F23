@@ -1,0 +1,487 @@
+---
+title: "Hockey Analytics Final Project Report"
+author: "Jeff Jung"
+date: "Fall 2023 Nov 26th"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  html_notebook: default
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    theme: united
+---
+
+# DAR Project and Group Members
+
+Jeff Jung
+Caleb Smith
+Liebin Zhang
+Ashley Woodson
+Amy Enyenihi
+
+# Project 
+
+Hockey Analytics
+
+# Abstract
+
+This research project explores the application of data analytics to gain insights into the performance of the RPI women's hockey team based on shot data. The project involves a multi-step analysis, beginning with thorough data cleaning to eliminate outliers that may skew the results. Subsequently, continuous variables such as puck distance, puck angle, and player speeds are discretized through careful categorization determined by the examination of density plots. The discretized variables are then used in the creation of cluster models using the k-means algorithm. This cluster analysis aims to unveil patterns and relationships within the data, shedding light on factors influencing successful goals or saves. By employing a systematic approach that combines data cleaning, categorization, and clustering, this project contributes to the understanding of key variables impacting the outcomes of hockey shots.
+
+# Introduction and Background
+
+The purpose of hockey analytics is to utilize statistical analysis and advanced metrics to gain deeper insights into player and team performance, enabling data-driven decision-making in various aspects of the sport. By examining detailed statistics and metrics beyond traditional measures, hockey analytics helps teams evaluate player contributions, optimize strategic approaches, and identify areas for improvement. Ultimately, the goal is to enhance overall team performance, inform coaching decisions, and provide a more comprehensive understanding of the game.
+
+The dataset utilized for this project was sourced from the RPI women's hockey team and comprises a total of 105 shots. It encompasses nine continuous and five categorical variables. A more detailed explanation of the dataset will be provided in subsequent sections.
+
+In light of limited data on goals, my research primarily concentrated on exploring datasets associated with saves. Initially, I sought to understand the central tendency and variability of saves by calculating the median and standard deviation. However, these summary statistics lacked granularity. Consequently, I turned to density plots for visualization, revealing interesting patterns in the data distribution. Notably, each variable exhibited distinct concentration ranges, prompting me to categorize continuous variables based on the observed density plot shapes.
+
+```{r , echo=FALSE}
+# Code 
+
+# Load required library
+library(dplyr)
+library(tidymodels)
+library(knitr)
+library(pheatmap)
+
+# load datasets
+shots <- readRDS('shots_stats_goal.df.Rds')
+
+# Creates a variable goal_binary that contains binary values 0 for save 1 for goal
+shots <- shots %>%
+  mutate(goal_binary = as.integer(outcomes.goal == 2))
+
+# convert goal_binary into a factor
+shots$goal_binary <- as.factor(shots$goal_binary)
+
+# Subset the data for not goals (e.g., "Save")
+saves <- shots[shots$goal_binary != "1", ]
+
+# Mean and standard deviation of puckDist from saved shots data
+median_puckDist_saves <- median(saves$puckDist)
+sd_puckDist_saves <- sd(saves$puckDist)
+cat("Median of Puck Distance for Saves:", median_puckDist_saves, "\n")
+cat("Standard Deviation of Puck Distance for Saves:", sd_puckDist_saves, "\n")
+```
+
+# Problems Tackled
+
+The main problem that was considered was how we can improve the analysis. One way to do that is by discretizing continuous variables, specifically puckDist, puckAngle, puckSpeed, shooterSpeed, goalieDist, goalieAngle, posTime, defDist, and defAngle. The initial step involves cleaning the data to mitigate potential skewness. Subsequently, we examine density plots using the cleaned data to identify suitable ranges for discretization. Employing the k-means method, we create two distinct sets of clusters: one for continuous variables and another for categorical variables. This process aims to enhance the granularity of our analysis and facilitate a more nuanced exploration of the dataset.
+
+# Data Description
+
+The main dataset utilized, named "shots," is derived from games played by the RPI women's hockey team, comprising a total of 105 observations or shots. It encompasses nine continuous variables: puckDist, puckAngle, puckSpeed, shooterSpeed, goalieDist, goalieAngle, posTime, defDist, and defAngle. Additionally, there are five categorical variables: NumOffense, NumDefense, rightHanded, closestDef, and shotOutcome. 
+
+In the initial stage of data processing, a two-step approach to data cleaning is implemented. The process involves two functions: detect_outlier and remove_outlier. The detect_outlier function identifies all outliers in the dataset, while the remove_outlier function eliminates the data points classified as outliers by the detect_outlier function. This systematic approach ensures the removal of any anomalous or extreme values, contributing to a cleaner and more reliable dataset for subsequent analyses.
+
+In the process of analyzing continuous variables, density plots were utilized to identify suitable cutoffs for categorization. This involved assessing the concentration areas within each density plot to determine distinct value ranges. For instance, in the case of puckDist, the cutoff value of 310 was chosen because an approximately equal number of data points lie both below and above this value in the density plot. The number of categories established was contingent on the density plot's shape, allowing for a more nuanced categorization approach. As an illustration, defenderAngle was categorized using cutoffs at 63 and 112, aligning with the observation of three concentrated data ranges discerned from its density plot.
+
+The assignment of discretized values follows a straightforward process. For instance, all puckDist values below 310 are assigned 0, and those above 310 are assigned 1. In cases where there are three categories, an additional value is assigned. For example, the categorized defenderAngle variable assigns values below 63 to 0, values between 63 and 112 to 1, and values above 112 to 2. The specific cutoffs for each feature are detailed in the "Variable Categorization Based on Quantiles" table. To ensure these variables function as discretized categories, the assigned values are converted into factors. This systematic approach enhances the interpretability and utility of the discretized variables in subsequent analyses.
+
+```{r, echo=FALSE}
+# Code 
+
+# load datasets
+shots <- readRDS('shots_stats_goal.df.Rds')
+
+# create detect outlier function
+detect_outlier <- function(x) {
+ 
+    # calculate first quantile
+    Quantile1 <- quantile(x, probs=.25)
+ 
+    # calculate third quantile
+    Quantile3 <- quantile(x, probs=.75)
+ 
+    # calculate inter quartile range
+    IQR = Quantile3-Quantile1
+ 
+    # return true or false
+    x > Quantile3 + (IQR*1.5) | x < Quantile1 - (IQR*1.5)
+}
+ 
+# create remove outlier function
+remove_outlier <- function(dataframe,
+                            columns=names(dataframe)) {
+ 
+    # for loop to traverse in columns vector
+    for (col in columns) {
+ 
+        # remove observation if it satisfies outlier function
+        dataframe <- dataframe[!detect_outlier(dataframe[[col]]), ]
+    }
+}
+
+# Select the columns where you want to remove outliers
+remove_outlier(shots, c('puckDist', 'puckAngle', 'shooterSpeed','goalieDist','goalieAngle', 'posTime', 'defDist', 'defAngle'))
+
+# Manual selection for categories based on the shape of density plots above
+puckDist_q <- c(310)
+puckAngle_q <- c(90)
+puckSpeed_q <- c(15, 50)
+shooterSpeed_q <- c(17, 25)
+goalieDist_q <- c(58, 80)
+goalieAngle_q <- c(80)
+posTime_q <- c(45)
+defDist_q <- c(250)
+defAngle_q <- c(63, 112)
+
+# copy of shots for categorical a dataset
+catshots <- shots
+
+# Create categorical variables
+catshots <- catshots %>%
+  mutate(puckSpeedCategory = case_when(
+    puckSpeed <= puckSpeed_q[1] ~ 0,
+    puckSpeed <= puckSpeed_q[2] ~ 1,
+    TRUE ~ 2
+  ))
+catshots <- catshots %>%
+  mutate(puckAngleCategory = case_when(
+    puckAngle <= puckAngle_q[1] ~ 0,
+    TRUE ~ 1
+  ))
+catshots <- catshots %>%
+  mutate(puckDistCategory = case_when(
+    puckDist <= puckDist_q[1] ~ 0,
+    TRUE ~ 1
+  ))
+catshots <- catshots %>%
+  mutate(posTimeCategory = case_when(
+    posTime <= posTime_q[1] ~ 0,
+    TRUE ~ 1
+  ))
+catshots <- catshots %>%
+  mutate(goalieDistCategory = case_when(
+    goalieDist <= goalieDist_q[1] ~ 0,
+    goalieDist <= goalieDist_q[2] ~ 1,
+    TRUE ~ 2
+  ))
+catshots <- catshots %>%
+  mutate(shooterSpeedCategory = case_when(
+    shooterSpeed <= shooterSpeed_q[1] ~ 0,
+    shooterSpeed <= shooterSpeed_q[2] ~ 1,
+    TRUE ~ 2
+  ))
+catshots <- catshots %>%
+  mutate(goalieAngleCategory = case_when(
+    goalieAngle <= goalieAngle_q[1] ~ 0,
+    TRUE ~ 1
+  ))
+catshots <- catshots %>%
+  mutate(defDistCategory = case_when(
+    defDist <= defDist_q[1] ~ 0,
+    TRUE ~ 1
+  ))
+catshots <- catshots %>%
+  mutate(defAngleCategory = case_when(
+    defAngle <= defAngle_q[1] ~ 0,
+    defAngle <= defAngle_q[2] ~ 1,
+    TRUE ~ 2
+))
+
+# Drop continous variables for categorical dataset
+catshots <- catshots %>%
+    select(- puckDist, - puckAngle, - puckSpeed, - shooterSpeed, - goalieDist, - goalieAngle, - posTime, - defDist, - defAngle)
+
+# Convert categorized variable as factors
+catshots[sapply(catshots, is.numeric)] <- lapply(catshots[sapply(catshots, is.numeric)], as.factor)
+```
+
+```{r, echo=FALSE}
+# Code 
+
+# Creates a variable goal_binary that contains binary values 0 for save 1 for goal
+shots <- shots %>%
+  mutate(goal_binary = as.integer(outcomes.goal == 2))
+
+# Convert goal_binary into a factor
+shots$goal_binary <- as.factor(shots$goal_binary)
+
+# Create a data frame for quantiles
+quantiles <- data.frame(
+  Variable = c("puckDist", "puckAngle", "puckSpeed", "shooterSpeed", "goalieDist", "goalieAngle", "posTime", "defDist", "defAngle"),
+  Cutoffs = c("310", "90", "15, 50", "17, 25", "58, 80", "80", "45", "250", "63, 112")
+)
+
+# Print the table
+kable(quantiles, caption = "Variable Categorization")
+
+```
+
+# Data Analytics Methods
+
+After obtaining a cleaned dataset devoid of outliers, I proceeded to exclude the original categorical variables from the shot_stats_goal data. This facilitated a focused comparison between the newly created categorical variables and their corresponding continuous counterparts. Employing the k-means machine learning algorithm, I developed two models—one for the original data and another for the categorical data. To ensure optimal cluster identification, an elbow test was conducted. Despite this, I chose to utilize 5 clusters to align with Caleb's cluster data, given the inherent variability in cluster assignments by the k-means algorithm. The resulting models were saved as files for future reference.
+
+```{r, echo=FALSE}
+# Code 
+
+# Drop variables that were categorical at the first place
+shots_bioutcome <- shots
+catshots <- catshots %>%
+    select(- NumOffense, - NumDefense, - rightHanded, -closestDef, - shotOutcome)
+shots <- shots %>%
+  select(- NumOffense, - NumDefense, - rightHanded, -closestDef, - shotOutcome, - goal_binary)
+
+# Making models using k means
+# org_model <- kmeans(shots, centers = 5)
+# cat_model <- kmeans(catshots, centers = 5)
+
+# Save models derived from using k means
+# saveRDS(org_model, file = "org_model.rds")
+# saveRDS(cat_model, file = "cat_model.rds")
+
+# Read the models
+cat_model <- readRDS('cat_model.rds')
+org_model <- readRDS('org_model.rds')
+
+# # Get cluster assignments
+org_cluster <- org_model$cluster
+cat_cluster <- cat_model$cluster
+
+# Compute the total within-cluster sum of squares for different numbers of clusters
+cat_wss_values <- c() 
+for (i in 1:10) {
+  cat_elbow <- kmeans(catshots, centers = i)
+  cat_wss_values <- c(cat_wss_values, cat_elbow$tot.withinss)
+}
+org_wss_values <- c() 
+for (i in 1:10) {
+  org_elbow <- kmeans(shots, centers = i)
+  org_wss_values <- c(org_wss_values, org_elbow$tot.withinss)
+}
+
+# This is for categorical model
+# Plot the Elbow plot to visualize the within-cluster sum of squares by number of clusters
+plot(1:10, cat_wss_values, type = "b", xlab = "Number of Clusters", ylab = "Total Within Sum of Squares",
+     main = "Elbow Method for Optimal Clusters (Categorical)")
+
+# Identify the elbow point
+cat_elbow_k <- 1
+for (i in 2:(length(cat_wss_values) - 1)) {
+  if ((cat_wss_values[i] - cat_wss_values[i - 1]) > (cat_wss_values[i + 1] - cat_wss_values[i])) {
+    cat_elbow_k <- i
+    break
+  }
+}
+
+# Highlight the elbow point in the plot
+points(5, cat_wss_values[5], col = "red", cex = 2, pch = 19)
+abline(v = 5, lty = 2)
+
+
+# This is for the continous model
+# Plot the Elbow plot to visualize the within-cluster sum of squares by number of clusters
+plot(1:10, org_wss_values, type = "b", xlab = "Number of Clusters", ylab = "Total Within Sum of Squares",
+     main = "Elbow Method for Optimal Clusters (Continuous)")
+
+# Identify the elbow point
+org_elbow_k <- 1
+for (i in 2:(length(org_wss_values) - 1)) {
+  if ((org_wss_values[i] - org_wss_values[i - 1]) > (org_wss_values[i + 1] - org_wss_values[i])) {
+    org_elbow_k <- i
+    break
+  }
+}
+
+# Highlight the elbow point in the plot
+points(6, org_wss_values[6], col = "red", cex = 2, pch = 19)
+abline(v = 6, lty = 2)
+```
+
+# Experimental Results
+
+Utilizing the original and categorical clusters derived from the preceding analyses, a heatmap was generated by constructing a correlation matrix between these two groups of clusters. The heatmap visually represents the degree of correlation between pairs of variables, employing a numeric scale reflected in the color intensity within each cell. Larger numerical values indicate a higher correlation, while smaller values signify a lower correlation. This visual representation facilitates the interpretation of relationships and associations between variables within the context of both original and categorical cluster groupings.
+
+```{r, echo=FALSE}
+# Create a matrix
+conf_mat <- table(org_cluster, cat_cluster)
+
+# Modify row and column names
+rownames(conf_mat) <- paste("Continuous", 1:5)
+colnames(conf_mat) <- paste("Categorized", 1:5)
+# Plot the confusion matrix as a heatmap
+pheatmap(conf_mat,
+         main = 'Continuous Cluster vs Categorical Cluster Heatmap',
+         scale = "column",
+         display_numbers = TRUE,
+         number_color = "black",
+         fontsize_number = 8)
+```
+
+Furthermore, I generated heatmaps by constructing correlation matrices between each outcome and the two groups of clusters. These visualizations aim to illuminate the likelihood of specific outcomes associated with each cluster. This classification approach provides insights into the characteristics and patterns associated with different clusters, offering a comprehensive understanding of the potential outcomes and their correlations with specific shot attributes.
+
+```{r, echo=FALSE}
+# Make a matrix with the clusters from the original data and 4 outcomes of shots
+org_conf_mat <- table(org_cluster, shots$outcomes.goal)
+
+# Plot the confusion matrix as a heatmap
+rownames(org_conf_mat) <- paste("Continuous Cluster", 1:5)
+colnames(org_conf_mat) <- paste("Outcome", 1:4)
+
+pheatmap(org_conf_mat,
+         main = 'Original Clusters vs Outcomes Heatmap',
+         scale = "column", 
+         display_numbers = TRUE, 
+         number_color = "black", 
+         fontsize_number = 8)
+
+# Make a matrix with the clusters from the original data and 4 outcomes of shots
+cat_conf_mat <- table(cat_cluster, catshots$outcomes.goal)
+
+# Plot the confusion matrix as a heatmap
+rownames(cat_conf_mat) <- paste("Cateogircal Cluster", 1:5)
+colnames(cat_conf_mat) <- paste("Outcome", 1:4)
+
+pheatmap(cat_conf_mat, 
+         main = 'Categorical Clusters vs Outcomes Heatmap',
+         scale = "column", 
+         display_numbers = TRUE, 
+         number_color = "black", 
+         fontsize_number = 8)
+```
+
+Upon examining the correlation matrix between the original and categorical clusters, it is observed that they exhibit robust correlations. Ideally, a high correlation is desired between each original cluster and precisely one categorical cluster. Original Cluster 1 demonstrates a notable correlation with Categorical Cluster 1, while all other correlations are slightly negative. This pattern suggests a strong similarity between shots in these two clusters. Original Cluster 2 exhibits high correlations with Categorical Clusters 2 and 4, and a moderate correlation with Categorical Cluster 3. For Original Cluster 3, a high correlation is observed with Categorical Cluster 5. However, Original Clusters 4 and 5 do not exhibit strong correlations with categorical clusters, indicating dissimilarity. In summary, with the exception of Original Clusters 2 and 4, the remaining original clusters display a one-to-one correlation with their corresponding categorical clusters.
+
+For each cluster for discretized data, the mode discrete value for each feature is shown in the "Discrete Mode Values" table.
+
+```{r, echo=FALSE}
+# Code
+
+# function for finding the mode
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# calculate modes for each cluster for categorical variables
+modes_by_cluster <- aggregate(. ~ cat_cluster, data = catshots, FUN = Mode)
+
+# Print the result
+kable(modes_by_cluster, caption = "Discrete Model Values")
+```
+
+Describing the characteristics of each cluster for continuous variables provides insights into distinct shot patterns. Shots in Cluster 1 are taken from a considerable distance from the goal, exhibiting high puck speed and possession time, indicating long and calculated shots. Cluster 2 comprises shots taken from an exceptionally far distance with a slow pace. Shots in Cluster 3 are characterized by intense pressure from the goalie and defenders. Cluster 4 represents mid-range shots with a moderate puck speed. Finally, shots in Cluster 5 are exceptionally far and fast, suggesting shots with both considerable distance and speed.
+
+For each cluster for continuous data, the mean value for each feature is shown in "Continuous Mean Values" table.
+
+```{r, echo=FALSE}
+# Calculate means for each cluster for continuous variables
+table_shots <- shots %>%
+  select(- outcomes.goal)
+
+means_org <- aggregate(table_shots, by = list(org_cluster), FUN = mean)
+kable(means_org, caption = "Continuous Mean Values")
+```
+
+Describing the characteristics of each cluster for discretized variables reveals distinct patterns. Shots in Cluster 1 are characterized by a fast puck speed, a long possession time, and a rapid shooter speed. Cluster 2 encompasses mid-range shots with moderate speed, resembling Cluster 4, but predominantly taken from the right side. Shots in Cluster 3 are notable for being taken from a considerable distance from the goal and defender. Cluster 4 shares similarities with shots in Cluster 2 but is predominantly taken from the left side. Finally, shots in Cluster 5 represent high-pressure situations, taken in close proximity to the goalie and defender.
+
+```{r, echo=FALSE}
+# Density plot of each variable
+ggplot(shots_bioutcome, aes(x = puckDist, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(310), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Puck Distance by Outcome",
+       x = "Puck Distance",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = puckAngle, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(90), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Puck Angle by Outcome",
+       x = "Puck Angle",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = puckSpeed, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(15, 50), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Puck Speed by Outcome",
+       x = "Puck Speed",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = shooterSpeed, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(17, 25), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Shooter Speed by Outcome",
+       x = "Shooter Speed",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = goalieDist, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(58, 80), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Goalie Distance by Outcome",
+       x = "Goalie Distance",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = goalieAngle, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(80), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Goalie Angle by Outcome",
+       x = "Goalie Angle",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = posTime, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(45), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Possession Time by Outcome",
+       x = "Possession time",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = defDist, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(250), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Defender Distance by Outcome",
+       x = "Defender Distance",
+       y = "Density")
+ggplot(shots_bioutcome, aes(x = defAngle, fill = goal_binary)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(xintercept = c(63, 112), linetype = "dashed", color = "blue", size = 1) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("0" = "Save", "1" = "Goal")) +
+  labs(title = "Distribution of Defender Angle by Outcome",
+       x = "Defender Angle",
+       y = "Density")
+```
+
+Lastly, the density plots above were used to find the cutoffs for discretization. Marks were added where the cutoffs are.
+
+# Discussion of Results and Key Findings
+
+In exploring the dataset, it became evident that transforming continuous variables into categorical ones adds a layer of granularity to the analysis. While continuous variables provide a single value for optimal shots, categorizing them allows for a more nuanced understanding of the combinations of features leading to specific outcomes. Employing the k-means clustering method on both categorical and continuous variables revealed discernible patterns in shots. The correlation matrix highlighted consistent one-to-one correlations between the two groups of clusters. This consistency suggests that the observed shot patterns are not arbitrary but rather a recurring phenomenon in hockey games. The comprehensive analysis of both categorical and continuous variables provides valuable insights into the dynamics of successful shots.
+
+The insights gained from this analysis hold significant implications for hockey strategy. By delving into shot clusters using categorical variables, players can derive optimal shot combinations tailored to specific game scenarios. This analytical approach not only answers nuanced questions but also unveils patterns that may remain obscure without data-driven exploration. For instance, it allows us to determine the ideal goalie angle category when facing a shot with a considerable puckDist. This knowledge empowers players and teams to make informed decisions, enhancing their strategic prowess on the ice.
+
+# Conclusions
+
+The distinctive patterns observed in these clusters underscore their meaningful nature, dismissing the notion of mere chance. This clustering aligns with the prevalent trends in shot-taking scenarios. The application of hockey data analytics promises to revolutionize our comprehension of the sport, unveiling insights that are uniquely attainable through analytical methodologies. The process of data discretization proves pivotal in this context, as categorical variables offer a nuanced understanding beyond singular numerical values. By adopting a more scientific approach to shot selection, informed by the concealed insights within the data, hockey players and teams can elevate their strategic decision-making on the ice.
+
+# Directions for Future Investigation
+
+With an increased volume of data, we can enhance categorization methodologies, possibly identifying additional clusters that capture diverse shot scenarios. The primary objective remains the same – to discern the optimal shot selection in situations where making a shot is imperative. This iterative process, fueled by more extensive data, promises to unveil deeper insights into the nuanced dynamics of hockey shots, contributing to a more comprehensive understanding of strategic decision-making in the sport.
+
+# Bibliography
+
+http://www.sthda.com/english/wiki/saving-data-into-r-data-format-rds-and-rdata#google_vignette
+https://stackoverflow.com/questions/32684931/how-to-aggregate-data-in-r-with-mode-most-common-value-for-each-row
+
+# Files and Github Commits
+
+Uploaded the final project notebook to FinalReport folder.
+
+# Contribution
+
+Density plots other group mates to better understand the data set.
+The data set with categorized variables helped other group members to experiment with analytical methods.

@@ -1,0 +1,493 @@
+---
+title: "Exploring and Analyzing Hockey Scoring Sequences - J.Jung"
+subtitle: "DAR Assignment 2 (Fall 2023) - J.Jung"
+author: "Jeff Jung"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+  
+# Assignment 2 Notebook Overview
+
+This notebook is broken into two main parts:
+
+    * Part 1 is a guide to pulling the Hockey Analysis repository from the RPI github
+    * Part 2 is an introduction to the RPI Hockey motion capture data, including simple modelling
+    * Part 3 ask you to do your own modeling
+    * Parts 4 and 5 give you additional assignments.
+
+This R Notebook and its related R scripts provide a very basic introduction to the RPI Hockey Motion Capture dataset. This data will be used by the **Hockey Analytics** group during DAR F23.
+
+The RPI github repository for all the code required for this notebook may be found at:
+
+* https://github.rpi.edu/DataINCITE/Hockey_Fall_2023
+
+**TBD:** The `Hockey_Fall_2023` github may also contain topical notebooks which provide tutorials regarding a number of different research-worthy starting points. Feel free to examine these notebooks.
+
+## PART 1: CLONING A NOTEBOOK AND UPDATING THE REPOSITORY
+
+In this assignment we're asking you to...
+
+* Clone the `Hockey_Fall_2023` github repository...
+* Create a personal branch using git, and...
+* Copy this notebook (as instructed) and customize it; this includes adding code and answering questions.
+* Add your new notebook to the project repo on the RPI github. 
+
+The instructions below explain how to accomplish all of this. 
+
+### Cloning an RPI github repository
+
+The recommended procedure for cloning and using this repository is as follows:
+
+* Access the RPI network via VPN	
+    * See https://itssc.rpi.edu/hc/en-us/articles/360008783172-VPN-Connection-and-Installation for information
+
+* Access RStudio Server on the IDEA Cluster at http://lp01.idea.rpi.edu/rstudio-ose/
+    * You must be on the RPI VPN!!
+* Access the Linux shell on the IDEA Cluster by clicking the **Terminal** tab of RStudio Server (lower left panel). 
+    * You now see the Linux shell on the IDEA Cluster
+    * `cd` (change directory) to enter your home directory using: `cd ~`
+    * Type `pwd` to confirm
+    * NOTE: Advanced users may use `ssh` to directly access the Linux shell from a macOS or Linux command line
+* Type `git clone https://github.rpi.edu/DataINCITE/Hockey_Fall_2023` from within your `home` directory
+    * This will create a new directory `Hockey_Fall_2023`
+* In the Linux shell, `cd` to `Hockey_Fall_2023/StudentNotebooks/Assignment01`
+    * Type `ls -al` to list the current contents
+    * Don't be surprised if you see many files!
+* In the Linux shell, type `git checkout -b dar-yourrcs` where `yourrcs` is your RCS id
+    * For example, if your RCS is `erickj4`, your new branch should be `dar-erickj4`
+    * It is _critical_ that you include your RCS id in your branch id
+* Now in the RStudio Server UI, navigate to the `Hockey_Fall_2023/StudentNotebooks/Assignment01` directory via the **Files** panel (lower right panel)
+    * Under the **More** menu, set this to be your R working directory
+    * Setting the correct working directory is essential for interactive R use!
+
+### REQUIRED FOR ASSIGNMENT 2
+
+1. In RStudio, make a **copy** of `darf23-assignment2-template.Rmd` file using a *new, original, descriptive* filename that **includes your RCS ID!**
+    * Open `darf23-assignment2-template.Rmd`
+    * **Save As...** using a new filename that includes your RCS ID
+    * Example filename for user `erickj4`: `erickj4-assignment1-f23.Rmd`
+    * POINTS OFF IF:
+       * You don't create a new filename!
+       * You don't include your RCS ID!
+       * You include `template` in your new filename!
+2. Edit your new notebook using RStudio and save
+    * Change the `title:` and `subtitle:` headers (at the top of the file)
+    * Change the `author:` 
+    * Don't bother changing the `date:`; it should update automagically...
+    * **Save** your changes
+3. Use the RStudio `Knit` command to create an HTML file; repeat as necessary
+    * Use the down arrow next to the word `Knit` and select **Knit to HTML**
+    * You may also knit to PDF...
+4. In the Linux terminal, use `git add` to add each new file you want to add to the repository
+    * Type: `git add yourfilename.Rmd` 
+    * Type: `git add yourfilename.html` (created when you knitted)
+    * Add your PDF if you also created one...
+5. Continue making changes to your personal notebook
+    * Add code where specified
+    * Answer questions were indicated.
+6. When you're ready, in Linux commit your changes: 
+    * Type: `git commit -m "some comment"` where "some comment" is a useful comment describing your changes
+    * This commits your changes to your local repo, and sets the stage for your next operation.
+7. Finally, push your commits to the RPI github repo
+    * Type: `git push origin dar-yourrcs` (where `dar-yourrcs` is the branch you've been working in)
+    * Your changes are now safely on the RPI github. 
+8. **REQUIRED:** On the RPI github, submit a pull request.
+    * In a web browser, navigate to https://github.rpi.edu/DataINCITE/Hockey_Fall_2023
+    * In the branch selector drop-down (by default says **master**), select your branch
+    * **Submit a pull request for your branch**
+    * One of the DAR instructors will merge your branch, and your new files will be added to the master branch of the repo.
+
+Please also see these handy github "cheatsheets": 
+
+   * https://education.github.com/git-cheat-sheet-education.pdf
+
+## PART 2: HOCKEY DATA PREPARATION AND MODELLING
+
+*NOTE*: The code chunk `setup_1` should be run interactively (i.e. not by "knitting") before attempting to knit this notebook! 
+
+```{r setup_1, echo = FALSE, eval=FALSE}
+# RUN THIS CODE CHUNK BEFORE KNITTING (the first time)
+# NOTE: Do not run this code when knitting notebook
+
+# Install required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.rstudio.com"
+options(repos = r)
+
+if (!require("jpeg")) {
+   install.packages("jpeg")
+}
+if (!require("grid")) {
+   install.packages("grid")
+}
+if (!require("scales")) {
+   install.packages("scales")
+}
+if (!require("reshape2")) {
+   install.packages("reshape2")
+}
+if (!require("tidyverse")) {
+   install.packages("tidyverse")
+}
+if (!require("tidymodels")) {
+   install.packages("tidymodels")
+}
+if (!require("ggnewscale")) {
+   install.packages("ggnewscale")
+}
+if (!require("glmnet")) {
+   install.packages("glmnet")
+}
+if (!require("MLmetrics")) {
+   install.packages("MLmetrics")
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+}
+if (!require("magrittr")) {
+   install.packages("magrittr")
+}
+
+```
+
+```{r setup_2, include = FALSE}
+# Load required R packages
+# NOTE: Run this chunk every time but don't include code or results in rendered notebook
+
+# Plotting
+library(jpeg)
+library(grid)
+library(ggnewscale)
+library(scales)
+# Goal shot stats
+library(reshape2)
+#library(randomForest)
+# library(glmnet)
+#library(MASS)
+#library(Boruta)
+#library(MLmetrics)
+#library(kernelshap)
+#library(shapviz)
+
+library(knitr)
+library(tidyverse)
+library(tidymodels)
+library(magrittr)
+```
+
+### Setup: Define functions
+
+The major functions of this notebook are contained in the file `AnalysisCodeFunc.R`. This code chunk _sources_ (imports) a helper script that defines various functions used through this notebook for data processing and analysis. 
+
+```{r setup_3, echo = TRUE}
+# All user-defined functions are contained in the following helper script file. 
+source("../../AnalysisCodeFunc.R")
+```
+
+### Setting program parameters
+
+This section sets the dimensions of the data structures used in this notebook, based on the captured video. 
+
+```{r, echo = TRUE}
+# Size of rink image and of all plots
+xsize <- 2000
+ysize <- 850
+
+# FPS of the video
+fps <- 29.97
+
+# Coordinates to the goal pipes
+pipes_x <- 1890
+lpipe_y <- 395
+rpipe_y <- 455
+```
+
+## Data preparation for predictive modelling
+
+Based on our settings, this section reads in the captured image data.  
+
+The code is highly dependent upon the following directory structure:
+
+* The file path determined by the `filepath` variable contains folders named with the game number, followed by 'p', followed by the period number
+* Each `period` folder contains a folder named `Sequences`. 
+* Each `Sequences` folder contains `sequence_folders` that contain all the relevant sequence data.
+
+```{r, results='hide', message=FALSE}
+# Set filepaths and read the rink
+# Results suppressed because this can be messy...
+
+# This file path should contain the hockey rink images and all the sequences
+filepath <- '../../FinalGoalShots/'
+
+# See above for explanation of file path syntax
+games <- c(24, 27, 33, 34)
+# Only take the first and third periods. These are when the opposing team shoots on our goal. Our shots only accounted for about a fifth of shots, and removing them makes the data more consistent
+periods <- map(games, ~ str_c(., 'p', c(1, 3))) %>% unlist
+
+# Get the 'Sequences' folder for every period
+period_folders <- map(periods, ~ {
+  str_c(filepath, ., '/Sequences')
+})
+
+# Get every folder inside each 'Sequences' folder
+sequence_folders <- period_folders %>%
+  map(~ str_c(., '/', list.files(.))) %>%
+  unlist 
+
+# Read the rink images and format them to a raster used for graphing
+rink_raster <- makeRaster(filepath, 'Rink_Template.jpeg')
+half_rink_raster <- makeRaster(filepath, 'Half_Rink_Template.jpeg')
+
+# As every folder is run through the `combinePasses` function, the info.csv file in each sequence folder is read and its contents inserted as a row in info
+info <- matrix(0, nrow = 0, ncol = 4) %>% 
+  data.frame %>% 
+  set_names(c('possessionFrame', 'shotFrame', 'outcome', 'rightHanded'))
+
+# Read in all the sequences
+# NOTE: This step takes a long time (minutes)
+sequences = sequence_folders %>% map(combinePasses)
+
+# Change outcomes to more verbose names
+info$outcome %<>% fct_recode(Goal = 'G', Save = 'GB', 'Defender Block' = 'DB', Miss = 'M')
+```
+
+## Shot statistics retrieval
+
+This section constructs the dataframe used to predict if shots are successful.   
+
+```{r}
+# Get stats for the shot in every sequence
+shots_stats.df <- seq_along(sequences) %>% 
+  map_dfr(goalShotStats) %>% 
+  # Some models can't use logical data
+  mutate_if(is.logical, as.factor)
+```
+
+
+We first combine the shots data with the outcomes vector; 
+
+```{r}
+# Split data into training and validation sets
+outcomes.goal <- (info$outcome == 'Goal') %>% as.numeric %>% as.factor
+
+# Append to shots_stats.df
+shots_stats_goal.df <- cbind(shots_stats.df, outcomes.goal)
+
+# Save this dataframe on the file system in case we want to simply load it later (to save time) 
+saveRDS(shots_stats_goal.df, "shots_stats_goal.df.Rds")
+```
+
+## Predictive modelling
+
+### Prepare 80/20 Train/Test Sets
+
+Now let's do some basic classification analysis on the `shots_stats_goal.df` dataset!
+
+We'll use `tidymodels`, part of the **tidyverse**, to split the data into an 80% train/20% test split. 
+
+```{r}
+#Create training set
+set.seed(100)
+
+# Type ?initial_split , ?training , or ?testing in the R console to see how these work!
+hockey_split <- initial_split(shots_stats_goal.df, prop = 0.8)
+hockeyTrain <- training(hockey_split)
+hockeyTest <- testing(hockey_split)
+
+# Check how many observations for each split we have
+nrow(hockeyTrain)
+nrow(hockeyTest)
+
+# How many features are there
+ncol(hockeyTrain)
+```
+
+### Model One: Logistic regression and Balanced Accuracy (full dataset)
+
+We would like to create a model to predict the `outcomes.goal` variable which indicates whether a play resulted in a goal or not. 
+
+Our first model is trained using _logistic regression_. We show the most important coefficients in the following table. 
+
+```{r}
+
+# Create the model
+LR <- glm(outcomes.goal ~ . , family = "binomial",data=hockeyTrain)
+
+# Review our model
+summary(LR)
+
+# Get the p-values of the coefficients and show the ones that are less than 0.05 (if any!)
+coefs <- coef(summary(LR))
+
+kable(coefs[coefs[,4] < 0.05,c(1,4)])
+
+```
+
+### Computing _Balanced Accuracy_ on the test set
+
+Now we generate the confusion matrix and calculate BA from its cells based on e.g. 
+
+https://statisticaloddsandends.wordpress.com/2020/01/23/what-is-balanced-accuracy/
+
+where...
+
+* True positive: `cm[1,1]`
+* True negative: `cm[2,2]`
+* False negative: `cm[1,2]`
+* False positive: `cm[2,1]`
+
+```{r}
+
+testRes <- predict(LR,hockeyTest, type='response')
+
+# Our Confusion Matrix
+cm <- as.matrix(table(Actual = hockeyTest$outcomes.goal, Predicted = testRes>0.5))
+
+# Display the table (pretty!)
+kable(cm)
+
+# Balanced Accuracy
+balancedAccuracyTest1<-(cm[1,1]/(cm[1,1]+cm[1,2]) + cm[2,2]/(cm[2,1]+cm[2,2]))/2
+
+balancedAccuracyTest1
+  
+```
+
+### Model Two: Logistic regression and Balanced Accuracy (dropping a variable)
+
+Now we repeat the analysis dropping the `goalieScreened` variable which indicates whether the goalie's line of sight was blocked. How does the accuracy of the prediction change?
+
+```{r}
+
+# Model 2 
+
+LR <- glm(outcomes.goal ~ .- `goalieScreened`, family = "binomial",data=hockeyTrain)
+
+# Review our model
+summary(LR)
+
+# Get the p-values of the coefficients and show the ones that are less than 0.05 (if any!)
+coefs<-coef(summary(LR))
+kable(coefs[coefs[,4]<0.05,c(1,4)])
+
+```
+
+### Computing _Balanced Accuracy_ on the test set
+
+Can we still do a good job without the `goalieScreened` variable? 
+
+```{r}
+
+testRes<-predict(LR,hockeyTest, type='response')
+
+cm <- as.matrix(table(Actual = hockeyTest$outcomes.goal, Predicted = testRes>0.5))
+
+# Display the table (pretty!)
+kable(cm)
+
+# Balanced Accuracy
+balancedAccuracyTest2<-(cm[1,1]/(cm[1,1]+cm[1,2]) + cm[2,2]/(cm[2,1]+cm[2,2]))/2
+
+balancedAccuracyTest2
+  
+```
+
+### How much did we change our balanced accuracy?
+
+By dropping the one feature, how did we change our model?
+
+```{r}
+if (balancedAccuracyTest2 < balancedAccuracyTest1) {
+  print(paste0("Balanced accuracy decreased: Model2 = ",balancedAccuracyTest2, " < Model1 = ", balancedAccuracyTest1))
+} else if (balancedAccuracyTest2 > balancedAccuracyTest1) {
+  print(paste0("Balanced accuracy increased: Model2 = ",balancedAccuracyTest2, " > Model1 = ", balancedAccuracyTest1))
+} else {print("No  change...")}
+
+```
+
+## PART 3: Create and evaluate your own model
+
+Create your own classification model to predict goals using the training set, and evaluate the balanced accuracy on the test set.  Use the classification method of your choice.  
+
+Introduce yourself and the coordinate with your teammates on the Webex chat for the class called `DAR Hockey Analytics F23`.  Make sure that each teammate creates a unique model (you are welcome to run extras if you like).  
+
+Describe your modeling method.
+
+```{r}
+# insert your code here for creating the model
+
+# library
+library(naivebayes)
+
+# create the naive bayes model
+nb_model <- naive_bayes(outcomes.goal ~ ., data = hockeyTrain)
+
+# review the model
+summary(nb_model)
+
+# test result
+nb_results <- predict(nb_model, hockeyTest, type = "class")
+
+cm_nb <- table(Actual = hockeyTest$outcomes.goal, Predicted = nb_results)
+
+# confusion matrix
+kable(cm_nb)
+```
+
+Determine the balanced accuracy and compare with the above approaches. 
+
+```{r}
+# insert your code here for creating assessing
+
+# calculate the balanced accuracy
+balancedAccuracyTestNB <- (cm_nb[1, 1] / (cm_nb[1, 1] + cm_nb[1, 2]) + cm_nb[2, 2] / (cm_nb[2, 1] + cm_nb[2, 2])) / 2
+
+balancedAccuracyTestNB
+
+# Accuracy compared to accuracy test 1
+if (balancedAccuracyTestNB < balancedAccuracyTest1) {
+  print(paste0("Balanced accuracy decreased: NB Model = ",balancedAccuracyTestNB, " < Model1 = ", balancedAccuracyTest1))
+} else if (balancedAccuracyTest2 > balancedAccuracyTest1) {
+  print(paste0("Balanced accuracy increased: NB Model = ",balancedAccuracyTestNB, " > Model1 = ", balancedAccuracyTest1))
+} else {print("No  change...")}
+```
+
+Discuss how your results and how they compare with others. 
+
+## Part 4: Feature selection
+
+One of the aims of the hockey project is to determine which features are most predictive of successful goals.  Perform a creative analysis of your choice to examine one or more features and how they may be related to successful or unsuccessful goals.  Coordinate with your teammates to make sure you focus on different aspects of the project.   
+
+Describe your analysis.
+
+```{r}
+# insert your code here for creating assessing
+# visualization using ggplot
+ggplot(hockeyTrain, aes(x = goalieDist, fill = outcomes.goal)) +
+  geom_density(alpha = 0.3) +
+  labs(title = "Distribution of Distance to Goal by Outcome",
+       x = "Distance to Goal",
+       y = "Density")
+
+
+```
+
+Discuss your results and what they mean. 
+```{r}
+# insert your code here for creating assessing
+
+# there is a pretty clear distinction between goals and saves depending on the distance to goal since the two curves have different shapes. from this, we can infer that when the distance to goal is around 25, the chance of scoring a goal was the highest, and as the distance gets larger, it decreases. Also, another observation is that many players attempt to score or take a shot when the distance to goal is between 25-75.
+```
+
+## Part 5: Prepare group presentation
+
+Prepare a (at most) _three-slide_ presentation of your classification results and  creative analysis. Create a joint presentation with your teammates using the Google Slides template available here: https://bit.ly/45twtUP (copy the template and customize with your content)
+
+You should include a slide with a table that summarizes all of your and your teammates' balanced accuracy results.  
+
+Be prepared to present your results on 13 Sep 2023 in class! 

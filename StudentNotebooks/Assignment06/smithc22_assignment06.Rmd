@@ -1,0 +1,322 @@
+---
+title: "DAR F23 Project Status Notebook - Assignment 06"
+author: "Caleb Smith"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+subtitle: "Hockey Analytics"
+---
+
+## Weekly Work Summary	
+
+
+* RCS ID: smithc22
+
+* Project Name: Hockey Analytics
+
+* Summary of work since last week 
+    
+    I analyzed Jeff's discretezation of clusters, using UMAP + Kmeans as well as PCA to see if the categorization of everything would fix PCA's issue of not treating continuous and categorical variables evenly. 
+    
+    I also added a slider to allow the user to subset the data based on features in Play_Plotter. I'll discuss at the next meeting whether to allow the user to slice data on multiple features and how to implement it in a manner that would make since in the integration
+    
+    Finally, I attended the CommD meeting with Ashley about colors to get some advice for the color scheme. The new color scheme for clusters has been applied. They also recommend we switch the rink plot to grayscale.
+
+* Summary of github issues added and worked 
+    
+    n/a
+    
+* Summary of github commits 
+
+    
+    
+    Branch Name: dar-smithc22
+    Files pushed:
+    https://github.rpi.edu/DataINCITE/Hockey_Fall_2023/blob/dar-smithc22/ShinyApps/Play_Plotter/app.R
+    
+    https://github.rpi.edu/DataINCITE/Hockey_Fall_2023/blob/dar-smithc22/StudentNotebooks/Assignment06/smithc22_assignment06.Rmd
+    
+    https://github.rpi.edu/DataINCITE/Hockey_Fall_2023/raw/dar-smithc22/StudentNotebooks/Assignment06/smithc22_assignment06.pdf
+    
+    App Links:
+    
+    https://lp01.idea.rpi.edu/shiny/smithc22/Play_Plotter/
+    
+    
+* List of presentations,  papers, or other outputs
+
+    * N/A
+    
+* List of references (if necessary)
+
+N/A
+
+* Indicate any use of group shared code base
+
+I used some of Lieben's code from his app to help with the sliders in my app
+
+* Indicate which parts of your described work were done by you or as part of joint efforts
+
+Most of the work not already attributed was done by me, choosing colors was a joint effort between me, Ashley, and Jessica from CommD
+
+
+## Personal Contribution	
+
+* Clearly defined, unique contribution(s) done by you: code, ideas, writing...
+
+The code in this notebook is my own. I fixed some bugs in my app relating to cluster colors and also added a method of filtering out features based on a range, although I got the code for the UI from Lieben.
+
+* Include github issues you've addressed
+
+N/A
+
+## Analysis: Question 1: Does categorizing continuous variables change the clustering?
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+How does categorizing all the data change the clustering performed by UMAP?
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+The categorical data from Jeff, where each continuous feature is put into tertiles. 
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+1. Read in Jeff's data
+2. Select only the categorized parts
+
+3. Set things up so UMAP works properly
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+```{r, result01_data}
+# Include all data processing code (if necessary), clearly commented
+library(data.table)
+library(mltools)
+library(dplyr)
+library(plotly)
+library(umap)
+library(ggplot2)
+library(scatterplot3d)
+library(rgl)
+library(car)
+library(grid)
+library(gridExtra)
+library(kableExtra)
+library(heatmaply)
+library(gplots)
+library(tibble)
+library(ggbiplot)
+library(stats)
+setwd("~/Hockey_Fall_2023/StudentNotebooks/Assignment06")
+shots_stats.df <- readRDS("~/Hockey_Fall_2023/StudentData/categorized_shots_stats_goal.df.Rds")
+justCat <- cbind.data.frame(shots_stats.df[,16:23], shots_stats.df[,8:10])
+str(justCat)
+
+custom.config <- umap.defaults
+custom.config$random_state <- 11102023
+set.seed(100)
+
+select <- dplyr::select
+
+wssplot <- function(data, nc=15, seed=100){
+  wss <- data.frame(cluster=1:nc, quality=c(0))
+  for (i in 1:nc){
+    set.seed(seed)
+    wss[i,2] <- kmeans(data, centers=i)$tot.withinss}
+  ggplot(data=wss,aes(x=cluster,y=quality)) + 
+    geom_line() + 
+    ggtitle("Quality of k-means by Cluster")
+}
+```
+
+### Analysis: Methods and results
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+Trying to run UMAP and then Kmeans clustering on Jeff's data
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result01_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+umapCat <- umap(justCat,n_components = 2, config = custom.config)
+
+ggplot()+
+ geom_point(data = as.data.frame(umapCat$layout),aes(x = V1,y = V2))
+
+wssplot(umapCat$layout)
+```
+Kind of looks like 5 here, which is consistent with previous results. I'll try the clustering and see if it looks alright, and also generate a summary table to compare the clusters.
+
+```{r,result01b_analysis}
+k <- kmeans(umapCat$layout,5) #4 also looks pretty reasonable
+
+ggplot()+
+  geom_point(data = as.data.frame(umapCat$layout),aes(x = V1,y = V2,shape = as.factor(shots_stats.df$shotOutcome),color = as.factor(k$cluster))) +
+  scale_shape_manual(values = c(25,22,8,15,12))
+
+#summary table
+tabData <- cbind.data.frame(shots_stats.df[,1:10],k$cluster)
+tabData <- cbind.data.frame(tabData,shots_stats.df[,12:13])
+head(tabData)
+
+tab <- tabData %>% group_by(`k$cluster`) %>% summarise_all(.funs = mean)
+kable(tab[,1:9])
+kable(tab[,10:ncol(tab)])
+```
+
+3 is traffic jam, 2 is panic shots, 1 is perfect shots, not sure about 4 and 5. Categorical data seems to focus on angle a lot more. Defender block as a cluster was there because of the defender angle and the shooter angle lining up, so I think the categorizing of all the angles prevented it from forming, as everything became left, center, and right. While defenders being  directly in front or 60 degrees to the side are very different for a shooter, both of these scenarios can be placed similarly in the categorized data.
+
+
+For the UMAP graph: Very interesting, seems the goals all have the same (very high) V1 projection, resulting in them being clustered nicely. I'll take a look at a PCA to see if this is captured linearly as well, as having a more explanable dimensionality reduction would be nice to have
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+3 of the clusters lined up with the clusterings of the continuous, while wide open and defender block were no where to be seen. I explained defender block's absence above, but wide open is probably mixed in with perfect shot for a similar reason to defender block not being present, except this time it is the angle between the goalie and the shooter not being captured instead of the shooter-defender angle.
+
+## Analysis: Question 2: Can relationships between these categorical variables be linearly described?
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+Can we also see such a clean division with a more explainable dimensionality reduction method?
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+Just reusing the dataframe of categorical variables
+```{r, result02_data}
+# Include all data processing code (if necessary), clearly commented
+
+```
+
+### Analysis: Methods and Results  
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+Run a PCA and see how it compares with UMAP
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result02_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+
+catPCA <- prcomp(justCat)
+summary(catPCA)
+
+ggbiplot(catPCA,groups = as.factor(shots_stats.df$shotOutcome))
+
+```
+
+Goals lining up at a particular value isn't as pronounced as in UMAP, although it is still there. I'll do another graph to show the UMAP clusters instead of the outcomes, as well as a screeplot
+
+```{r,result02_analysisB}
+ggbiplot(catPCA,groups = as.factor(k$cluster))
+screeplot(catPCA)
+
+
+
+
+colorPalette <- c( rgb(0,0.62,0.45),rgb(86/255,180/255,233/255),
+                  rgb(230/255,159/255,0/255),rgb(204/255,121/255,167/255))
+colors <- colorPalette[k$cluster]
+
+scatterplot3d(catPCA$x[,1:3],color = colors)
+#Clusters don't nicely align
+
+#s3d <- scatterplot3d(catPCA$x[,1:3],color = colors)
+#legend(s3d$xyz.convert(7.5, 3, 4.5), legend = levels(shots_stats.df),
+#      col =  c("#999999", "#E69F00", "#56B4E9"), pch = 16)
+
+colors2 <- colorPalette[shots_stats.df$outcomes.goal]
+scatterplot3d(catPCA$x[,1:3],color = colors2)
+
+#light blue is goals, yeah doesn't really do much
+
+```
+
+Note the first 3D graph is by cluster, the second is by outcome. While there is still some seperation of clusters, and the UMAP clusters line up alright, it looks like clusters 3 and 5 are getting projected into the same plane in PCA, as are clusters 2 and 4. Unfortunately, going up to 3 dimensions doesn't stop these overlapping clusters. All the features related to players who aren't the shooter or the goalie are heavily correlated with eachother and puck distance, which makes sense. Puck angle and goalie angle are also correlated for rather obvious reasons, although the lack of representation right handed is getting in the 2D plot is bizzare. Puck speed is strongly negatively correlated with the angle category, which I wasn't really expecting. Shooter speed is off doing it's own thing.
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+PCA really doesn't do much with the data, there isn't a clear clustering to any great extent. I don't think Jeff's discretezation has too much impact on clustering, and I think the fact that all the categoricals got lumped together orginally in PCA hasn't changed, as things that were orginally categorical are still correlated in this new PCA.
+
+
+## Analysis: Question 3 (Provide short name)
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+```{r, result03_data}
+# Include all data processing code (if necessary), clearly commented
+
+```
+
+### Analysis methods used  
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result03_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+
+```
+
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+## Summary and next steps
+
+_Provide in natural language a clear summary and your proposed next steps._
+
+I'm done with clustering analyses, as the results here for clustering have been dead ends. I'll focus on integrating and finalizing the app, and the final paper for the rest of the semester

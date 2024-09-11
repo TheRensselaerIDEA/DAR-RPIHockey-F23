@@ -1,0 +1,100 @@
+---
+title: "DAR F23 Notebook 6"
+author: "Ashley Woodson"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+subtitle: "Hockey Analytics"
+---
+
+## Weekly Work Summary	
+
+* RCS ID: woodsa4
+* Project Name: Hockey Analytics
+* File names: woodsa4-assignment06.Rmd/.pdf
+* Summary of work since last week 
+
+    * Story-boarding the shiny dashboard visual 
+    * Planned and lead meeting with COMM-D for the color scheming and unification for the various graphical displays.
+
+* NEW: Summary of github issues added and worked 
+
+    * Not applicable
+    
+* Summary of github commits 
+
+    * branch name - dar-woodsa4
+    * include browsable links to all external files on github - none
+    * Include links to shared Shiny apps - none
+    
+* List of presentations,  papers, or other outputs
+
+    * Include browsable links - none
+    
+* List of references (if necessary) 
+
+    * https://coolors.co/54a838-b71515-ff7d00-15616d This is the coolors site used to find color palettes. 
+
+    * https://rstudio.github.io/shinydashboard/index.html This site has been my primary reading material this week in preparation for coding the shiny dashboard.
+
+* Indicate any use of group shared code base
+    
+    I have used the dataset created by Amy and Dr. Morgan, filtered through Jeff's categorization, in the heatmap, although that is not created in this notebook, just included as a screenshot.
+    
+* Indicate which parts of your described work were done by you or as part of joint efforts
+
+    The analysis in this notebook is primarily my work, with input from Caleb, and Jessica at COMM-D on the color scheme.
+
+* **Required:** Provide illustrating figures and/or tables
+
+  The figures named below will be attached at the bottom of the pdf submitted to gradescope.
+
+## Personal Contribution	
+
+* Clearly defined, unique contribution(s) done by you: code, ideas, writing...
+
+  * I have created the pheatmap and was the lead in coordinating the meeting for and establishing the color scheme.
+  * I have also began to code the shinydashboard, although i haven't figured out how to create the link to it so there are screenshots.
+
+
+## Analysis: Question 1 (Universal Color Scheme)
+
+### What color schemes should we use for this shiny app
+
+With two qualitative categories (goal outcome and cluster), as well as two continuous scales (Amy's projections and my heatmap), we need color schemes that can be held consistent throughout the application's tabs, and be clearly distinct. We want the user to know immediately, just by colors, which data type they are viewing. 
+
+### Discussion of results
+
+* The color schemes were developed using a combination of colorbrewer2 (the heatmap gradient), and coolors (for the qualitative colors).
+  
+  * For my heatmaps, a color gradient based in a magenta seems to be the best unique color, as it doesn't conflict with any other color scales, and is quite readable. This is consistent with the heatmap I've presented in class last week. My most updated heatmap with the new color scheme is figure 3 below.
+  
+  * For the goal outcomes, we settled on the color scheme in figure 1 (with four colors), which provide satisfactorily contrasting colors for both the side bar of the heatmaps, and (though untested) should provide a clear graph for liebin's app displays. We set the color for goals to red, defender block to green, misses to blue, and saves to orange.
+  
+  * The last color scheme, for Caleb's cluster displays, is shown in figure 2 (with 5 colors), which differs enough in the shades and hues of the colors that they are distinct, even at a glance, from the goal outcomes scheme. 
+  
+
+## Analysis: Question 2 (Shiny Dashboard)
+
+### Question being asked 
+
+How shall we lay out the dashboard to coordinate all the individual apps? Ie. storyboarding.
+
+### Discussion of results
+
+My original storyboard was shown in class on monday, but it was decided that the color scheme should be based in red (for Rensselaer), and the sidebar should be hidden. The tabbox feature should be used instead, and I have included this in my updataed template. I was unable to create a working link despite my best efforts, so i included screenshots below. 
+
+This new template is in fact a shiny app, so is primed to incorporate the other existing apps. 
+
+## Summary and next steps
+
+Overall, this week I was able to accomplish a lot of storyboarding, planning, and coordinating feedback. I coordinated and led the meeting at COMM-D to help establish a better color-scheme, as well as take Dr. Erickson and Dr. Bennett's feedback on the storyboard design to improve it. I was also able to begin the code for the shinydashboard application.
+
+I was trying to figure out how to create a link to my app, but was unsuccessful, so this is something I will ask about on monday during class. This is also the reason my submission to gradescope was slightly late, as i had to add more screenshots instead of having a working link.
+
+Moving forward I will also be coordinating with the rest of the group to both incorporate the new color scheming, as well as incorporate their code into this dashboard, to move towards a final deliverable.
+
+

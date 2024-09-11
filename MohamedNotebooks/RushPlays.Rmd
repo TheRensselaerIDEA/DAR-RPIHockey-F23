@@ -1,0 +1,283 @@
+---
+title: "Exploring and Analyzing Hockey 'Rush' Plays"
+subtitle: "DAR Assignment 2 (Fall 2023)"
+author: "Your Name Here"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+r = getOption("repos")
+r["CRAN"] = "http://cran.rstudio.com"
+options(repos = r)
+
+# Load all required packages
+
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(sp)
+library(jpeg)
+library(grid)
+library(ggnewscale)
+library(alkahest)
+```
+
+Read in all data and set parameters: 
+```{r}
+# Hockey rink image
+rink_image = readJPEG("FinalGoalShots/Rink_Template.jpeg")
+# Format the image to a raster for graphing
+rink_raster = rasterGrob(rink_image, width = unit(1,"npc"), height = unit(1,"npc"),interpolate = FALSE)
+
+# Load in all the rush play files
+num_rush_plays = 10
+#rush_plays = as.list(zeros(num_rush_plays, 1))
+rush_plays = as.list(rep(0, num_rush_plays))
+
+rush_indices = 1:num_rush_plays
+# Rush play 5 does not exist, so don't try to load it
+rush_indices = rush_indices[rush_indices != 5]
+
+# Rush play files are marked as RP(# of play)
+prefix = "RP"
+
+for (index in rush_indices){
+  # Load rush plays as csv file names "(prefix)(# of play)" from the "Hockey" folder
+  # from the home directory
+  rush_plays[[index]] = data.frame(read.csv(paste("FinalGoalShots/",prefix,index,".csv", sep=""), header=TRUE, row.names=NULL))
+}
+
+# Size of rink image and of all plots
+xsize = 2000
+ysize = 850
+```
+
+The `plotPlayerPaths()` function gives a graph of the paths of the hockey players on the rink, given a rush play data frame. It also removes the `(2000, 0)` points which are used as placeholders when the players are off-frame and interpolates between known frames
+
+The *use_speed_dots* option (`FALSE` by default), when set to `TRUE`, places dots along the paths whose colors represent the velocity of that player.
+
+The *do_smoothing* option (`TRUE` by default), when set to `TRUE`, uses triangle smoothing to smooth the player paths
+
+The plot title, colors of the paths and dots, and which players to use are controllable parameters with default values.
+
+```{r}
+# Function that returns distance between two points
+getDistance = function(point_1, point_2){
+  return(sqrt(sum((point_1-point_2)^2)))
+}
+
+# Function used to get a player's xy coordinates along with the frames they happened on
+getXYframes = function(rush_play, player_index){
+    # Get the current player's x and y coordinate and velocity
+    player_xy = rush_play[(2 * player_index):(2 * player_index + 1)]
+    
+    # Frame counts start at 1 and increment by 10 every row
+    frames = 1+10*0:(nrow(player_xy)-1)
+    
+    return(cbind(player_xy, frames))
+}
+# Function used to calculate speed in speedFromXY, in feet per second
+calculateSpeed = function(index, xy_frames, fps = 29.97){
+  # Store dx, dy, and dt in a single row
+  delta = xy_frames[index,] - xy_frames[index-1,]
+  
+  # 1 pixels = 1/10 foot
+  dxfeet = delta[1]/10
+  dyfeet = delta[2]/10
+  
+  # 1 frame = 1/fps seconds
+  dtseconds = delta[3]/fps
+  
+  # Pythagorean theorem for distance
+  ddistance = sqrt(dxfeet^2+dyfeet^2)
+  
+  speed = ddistance/dtseconds
+}
+
+# Function that takes in a set of x and y coordinates along with frame counts and returns speed for each row
+speedFromXY = function(xy_frames, fps = 29.97){
+  # xy_frames: A data frame with columns x, y, and frames
+  append(0, unlist(lapply(2:nrow(xy_frames), calculateSpeed, xy_frames, fps), use.names = FALSE))
+}
+# Function that takes in a data frame and smooths the given columns over a time series using triangular smoothing
+smoothDataFrameCols = function(data_frame, columns = 1:ncol(data_frame), span = 3){
+  data_frame[columns] = lapply(data_frame[columns], function(dfc) {
+    smooth_triangular(1:length(dfc), dfc, span)$y
+  })
+  
+  return(data_frame)
+}
+
+# Function that returns player paths, excluding the (2000, 0) coordinates from a rush play
+getFilteredPaths = function(rush_play, player_indices = 1:10, do_smoothing = FALSE, smooth_span = 3){
+    # Filter the paths for placeholder values
+  filtered_paths = as.list(zeros(max(player_indices), 1))
+  
+  for (player_index in player_indices){
+    # Get the player's xy coordinates and frames they happened
+    player_xyframes = getXYframes(rush_play, player_index)
+    
+    # Remove the (2000, 0) coordinates and store the results
+    filtered_xy = player_xyframes %>% filter(as.vector(player_xyframes[1] < 2000) & 
+                                                            as.vector(player_xyframes[2] > 0))
+    # Smooth if applicable
+    if(do_smoothing){
+      filtered_xy = smoothDataFrameCols(filtered_xy, 1:2, smooth_span)
+    }
+    
+    # Remove frame counts, then add speed
+    filtered_paths[[player_index]] = filtered_xy %>%
+      mutate('sp.{player_index}' := speedFromXY(filtered_xy)) %>%
+      select(-frames)
+  }
+  return(filtered_paths)
+}
+
+# Helper function to create geom_paths from a set of xy coordinates
+filteredPathToGeomPath = function(player_index, filtered_paths) {
+  fp = data.frame(filtered_paths[player_index])
+  # Do some weird stuff with get(names) because it doesn't work otherwise
+  return(geom_path(data = fp, aes(x = get(names(fp)[1]), y = get(names(fp)[2]), color = paste("Player", player_index))))
+}
+
+# Helper function to create geom points from xy coordinates and velocity
+filteredPathToGeomPoint = function(player_index, filtered_paths){
+  fp = data.frame(filtered_paths[player_index])
+  
+  # Don't make a dot for the start, where speed = 0
+  fp = fp[2:nrow(fp),]
+  
+  return(geom_point(data = fp, aes(x = get(names(fp)[1]), y = get(names(fp)[2]), color = get(names(fp)[3]))))
+}
+
+plotPlayerPaths = function(rush_play, plot_title="Untitled Rush Play", player_indices = 1:10, path_colors = c('black', 'green', 'blue', 'red', 'orange', 'yellow', 'purple', 'gray', 'cyan', 'brown'), use_speed_dots = FALSE, dot_scale = c("#0000FF", "#00FF00"), do_smoothing = FALSE, smooth_span = 3) {
+  plot = ggplot() +
+    # Superimpose the image of the rink
+    annotation_custom(rink_raster, xmin=0, xmax=xsize, ymin=0, ymax=ysize) +
+    # Set coordinates
+    ylim(0,ysize) +
+    xlim(0,xsize) +
+    # Set colors for the paths
+    scale_color_manual(values=path_colors) +
+    # And add labels and the title
+    labs(x = "x", y = "y", color = "Player") +
+    ggtitle(plot_title) +
+    # Center the title
+    theme(plot.title = element_text(hjust = 0.5))
+
+  # Grab the filtered paths
+  filtered_paths = getFilteredPaths(rush_play, player_indices, do_smoothing, smooth_span)
+  
+  # Add the filtered paths to the plot as a list
+  plot = plot + lapply(player_indices, filteredPathToGeomPath, filtered_paths)
+  
+  # Add dots marking speed
+  if (use_speed_dots){
+    # Allow another color scale for the dots
+    plot = plot + new_scale_color() + scale_colour_gradient(name = "f/s",low = dot_scale[1], high = dot_scale[2],limits=c(0,40))
+    
+    # Add all the dots
+    plot = plot + lapply(player_indices, filteredPathToGeomPoint, filtered_paths)
+  }
+  
+  return(plot)
+}
+```
+
+The "pairToPair" function gets the pair-to-pair separation of all players in a rush play as a list of list of data frames. Each data frame has two columns, one for the distance and one for the frames those distances happened. To get the pair-to-pair separation of two specific players, index the overall list with both player's indices: for example, pairToPair(rush_plays[[2]])[[1]][[2]] for the pair-to-pair separation of players 1 and 2.
+
+```{r}
+# Function that gets the distance between two players at a certain row
+distanceAtRow = function(row, xy_frames_p1, xy_frames_p2){
+  return(getDistance(xy_frames_p1[row, 1:2], xy_frames_p2[row, 1:2]))
+}
+# Function that creates a pair to pair separation for two players
+singlePairToPair = function(xy_frames_p1, xy_frames_p2, do_smoothing = FALSE){
+  # Abbreviate
+  xyf1 = xy_frames_p1
+  xyf2 = xy_frames_p2
+  
+  # Get all indices with (2000, 0) coordinates in either player
+  invalid_indices = xyf1[,1] == 2000 | xyf1[,2] == 0 | xyf2[,1] == 2000 | xyf2[,2] == 0
+  
+  # Exclude each player's invalid indices
+  xyf1 = xyf1[!invalid_indices, ]
+  xyf2 = xyf2[!invalid_indices, ]
+  
+  # Smooth if applicable
+  if(do_smoothing){
+    xyf1 = smoothDataFrameCols(xyf1, columns = c(1, 2))
+    xyf2 = smoothDataFrameCols(xyf2, columns = c(1, 2))
+  }
+  
+  # Get the distances at each row into a vector
+  distance = sapply(1:nrow(xyf1), distanceAtRow, xyf1, xyf2)
+  
+  # Keep the frame counts
+  result = cbind(distance, xyf1[3])
+  
+  return(result)
+}
+
+pairToPair = function(rush_play, do_smoothing = FALSE){
+  # Get the xy coordinates and frames for all players
+  # Then, find all pair to pair distance combinations
+  lapply(1:10, function(x) { lapply(lapply(1:10, function(y, rush) { getXYframes(rush, y) }, rush_play), singlePairToPair, getXYframes(rush_play, x), do_smoothing) } )
+}
+
+# Takes in a separation data frame and converts it to a geom line
+separationDFtoGeomLine = function(index, p2p_list, player_pairs){
+  return(geom_line(data = p2p_list[[index]], aes(x = frames, y = distance, color = paste(player_pairs[[index]][1], "vs", player_pairs[[index]][2]))))
+}
+
+# Takes in a p2p object and graphs the given combinations (... means you can input unlimited arguments, should be vectors with length two representing the player indices you want to compare)
+graphPairToPair = function(p2p_obj, ..., line_colors = c('black', 'green', 'blue', 'red', 'orange', 'yellow', 'purple', 'gray', 'cyan', 'brown'), plot_title = "Untitled P2P Separation Graph"){
+  # Convert the unlimited arguments to a form we can use
+  player_pairs = list(...)
+  
+  # Turn the two-item vectors into the appropriateseparation data frames
+  separation_list = lapply(player_pairs, function(x) {
+    return(p2p_obj[[x[1]]][[x[2]]])
+  })
+  
+  plot = ggplot() +
+    # Set the colors
+    scale_color_manual(values = line_colors) +
+    # Label the legend
+    labs(color = "Players") +
+    # Set and center the title
+    ggtitle(plot_title) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    # Set x and y bounds to the min and max values
+    xlim(0, 301) + 
+    ylim(0, getDistance(c(0, 0), c(2000, 850)))
+  
+  # Create the list of geom_lines
+  separation_lines = lapply(seq_along(separation_list), separationDFtoGeomLine, separation_list, player_pairs)
+  
+  # Add them to the plot
+  plot = plot + separation_lines
+  
+  return(plot)
+}
+```
+
+```{r}
+plotPlayerPaths(rush_plays[[2]], plot_title = "Unsmoothed")
+plotPlayerPaths(rush_plays[[2]], player_indices = c(2, 8), plot_title = "Selecting Players")
+plotPlayerPaths(rush_plays[[2]], use_speed_dots = TRUE, plot_title = "With Speed Dots")
+plotPlayerPaths(rush_plays[[2]], do_smoothing = TRUE, plot_title = "Smoothed")
+```
+```{r}
+p2p_rp2 = pairToPair(rush_plays[[2]])
+p2p_rp2_smooth = pairToPair(rush_plays[[2]], do_smoothing = TRUE)
+
+graphPairToPair(p2p_rp2, c(1, 2), c(1, 4), plot_title = "Player 1 vs 2 and 4")
+graphPairToPair(p2p_rp2_smooth, c(1, 2), c(1, 4), plot_title = "Player 1 vs 2 and 4, Smoothed")
+```
+
+```{r}
+
+```
+

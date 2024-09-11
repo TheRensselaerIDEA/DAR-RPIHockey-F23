@@ -1,0 +1,2 @@
+H1: Goalie
+V1: Shooter

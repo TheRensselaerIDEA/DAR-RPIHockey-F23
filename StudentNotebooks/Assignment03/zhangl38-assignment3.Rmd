@@ -1,0 +1,371 @@
+---
+title: "DAR F23 Project Status Notebook"
+author: "Liebin Zhang"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+subtitle: "Hockey Analytics"
+---
+
+
+## Weekly Work Summary	
+
+**NOTE:** Follow an outline format; use bullets to express individual points. 
+
+* RCS ID: zhangl38
+* Project Name: Hockey Analytics
+* Summary of work since last week 
+
+    * I dropped the feature of goal and then I build k-means elbow and visualizes means. After this I build Heatmap and visualize the pca graph without goal.
+
+* NEW: Summary of github issues added and worked 
+
+    * Issues that you've submitted
+    * Issues that you've self-assigned and addressed
+    
+* Summary of github commits 
+
+    * include branch name(s)
+    * include browsable links to all external files on github
+    * Include links to shared Shiny apps
+    
+* List of presentations,  papers, or other outputs
+
+    * Include browsable links
+    
+* List of references (if necessary) 
+* Indicate any use of group shared code base
+* Indicate which parts of your described work were done by you or as part of joint efforts
+
+* **Required:** Provide illustrating figures and/or tables
+
+## Personal Contribution	
+
+* Clearly defined, unique contribution(s) done by you: code, ideas, writing...
+* Include github issues you've addressed
+
+Besides the function codes are contained in the file `AnalysisCodeFunc.R`. in my data preparation step that imports as a helper script that defines various functions used through this notebook for data processing and analysis, all other ideas, codes, and writings are all done myself. 
+
+## Analysis: Question 1 
+
+### How to build k-means elbow and visualizes means and build Heatmap without goal?
+
+### Data Preparation
+
+
+```{r setup_1, echo = FALSE, eval=FALSE}
+# RUN THIS CODE CHUNK BEFORE KNITTING (the first time)
+# NOTE: Do not run this code when knitting notebook
+
+# Install required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.rstudio.com"
+options(repos = r)
+
+if (!require("jpeg")) {
+   install.packages("jpeg")
+}
+if (!require("grid")) {
+   install.packages("grid")
+}
+if (!require("scales")) {
+   install.packages("scales")
+}
+if (!require("reshape2")) {
+   install.packages("reshape2")
+}
+if (!require("tidyverse")) {
+   install.packages("tidyverse")
+}
+if (!require("tidymodels")) {
+   install.packages("tidymodels")
+}
+if (!require("ggnewscale")) {
+   install.packages("ggnewscale")
+}
+if (!require("glmnet")) {
+   install.packages("glmnet")
+}
+if (!require("MLmetrics")) {
+   install.packages("MLmetrics")
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+}
+if (!require("magrittr")) {
+   install.packages("magrittr")
+}
+if (!require("randomForest")) {
+   install.packages("randomForest")
+}
+```
+
+
+```{r setup_2, include = FALSE}
+# Load required R packages
+# NOTE: Run this chunk every time but don't include code or results in rendered notebook
+
+# Plotting
+library(jpeg)
+library(grid)
+library(ggnewscale)
+library(scales)
+# Goal shot stats
+library(reshape2)
+#library(randomForest)
+# library(glmnet)
+#library(MASS)
+#library(Boruta)
+#library(MLmetrics)
+#library(kernelshap)
+#library(shapviz)
+
+library(knitr)
+library(tidyverse)
+library(tidymodels)
+library(magrittr)
+```
+
+
+#### Setup: Define functions
+
+The major functions of this notebook are contained in the file `AnalysisCodeFunc.R`. This code chunk *sources* (imports) a helper script that defines various functions used through this notebook for data processing and analysis.
+
+```{r setup_3, echo = TRUE}
+# All user-defined functions are contained in the following helper script file. 
+source("../../AnalysisCodeFunc.R")
+```
+
+#### Setting program parameters
+
+This section sets the dimensions of the data structures used in this notebook, based on the captured video.
+
+```{r, echo = TRUE}
+# Size of rink image and of all plots
+xsize <- 2000
+ysize <- 850
+
+# FPS of the video
+fps <- 29.97
+
+# Coordinates to the goal pipes
+pipes_x <- 1890
+lpipe_y <- 395
+rpipe_y <- 455
+```
+
+#### Data preparation for predictive modelling
+
+Based on our settings, this section reads in the captured image data.
+
+The code is highly dependent upon the following directory structure:
+
+-   The file path determined by the `filepath` variable contains folders named with the game number, followed by 'p', followed by the period number
+-   Each `period` folder contains a folder named `Sequences`.
+-   Each `Sequences` folder contains `sequence_folders` that contain all the relevant sequence data.
+
+```{r, results='hide', message=FALSE}
+# Set filepaths and read the rink
+# Results suppressed because this can be messy...
+
+# This file path should contain the hockey rink images and all the sequences
+filepath <- '../../FinalGoalShots/'
+
+# See above for explanation of file path syntax
+games <- c(24, 27, 33, 34)
+# Only take the first and third periods. These are when the opposing team shoots on our goal. Our shots only accounted for about a fifth of shots, and removing them makes the data more consistent
+periods <- map(games, ~ str_c(., 'p', c(1, 3))) %>% unlist
+
+# Get the 'Sequences' folder for every period
+period_folders <- map(periods, ~ {
+  str_c(filepath, ., '/Sequences')
+})
+
+# Get every folder inside each 'Sequences' folder
+sequence_folders <- period_folders %>%
+  map(~ str_c(., '/', list.files(.))) %>%
+  unlist 
+
+# Read the rink images and format them to a raster used for graphing
+rink_raster <- makeRaster(filepath, 'Rink_Template.jpeg')
+half_rink_raster <- makeRaster(filepath, 'Half_Rink_Template.jpeg')
+
+# As every folder is run through the `combinePasses` function, the info.csv file in each sequence folder is read and its contents inserted as a row in info
+info <- matrix(0, nrow = 0, ncol = 4) %>% 
+  data.frame %>% 
+  set_names(c('possessionFrame', 'shotFrame', 'outcome', 'rightHanded'))
+
+# Read in all the sequences
+# NOTE: This step takes a long time (minutes)
+sequences = sequence_folders %>% map(combinePasses)
+
+# Change outcomes to more verbose names
+info$outcome %<>% fct_recode(Goal = 'G', Save = 'GB', 'Defender Block' = 'DB', Miss = 'M')
+```
+
+#### Shot statistics retrieval
+
+This section constructs the dataframe used to predict if shots are successful.
+
+```{r}
+# Get stats for the shot in every sequence
+shots_stats.df <- seq_along(sequences) %>% 
+  map_dfr(goalShotStats) %>% 
+  # Some models can't use logical data
+  mutate_if(is.logical, as.factor)
+```
+
+We first combine the shots data with the outcomes vector;
+
+```{r}
+# Split data into training and validation sets
+outcomes.goal <- (info$outcome == 'Goal') %>% as.numeric %>% as.factor
+
+# Append to shots_stats.df
+shots_stats_goal.df <- cbind(shots_stats.df, outcomes.goal)
+
+# Save this dataframe on the file system in case we want to simply load it later (to save time) 
+saveRDS(shots_stats_goal.df, "shots_stats_goal.df.Rds")
+```
+
+Now let's do some basic classification analysis on the `shots_stats_goal.df` dataset!
+
+We'll use `tidymodels`, part of the **tidyverse**, to split the data into an 80% train/20% test split.
+
+```{r}
+#Create training set
+set.seed(100)
+
+# Type ?initial_split , ?training , or ?testing in the R console to see how these work!
+hockey_split <- initial_split(shots_stats_goal.df, prop = 0.8)
+hockeyTrain <- training(hockey_split)
+hockeyTest <- testing(hockey_split)
+
+# Check how many observations for each split we have
+nrow(hockeyTrain)
+nrow(hockeyTest)
+
+# How many features are there
+ncol(hockeyTrain)
+```
+
+
+### Analysis: Methods and results
+
+
+#### Cluster the unsuccessful shots
+Step 1: I use new matrix named shotsNum to take off the goals(outcomes) and change the True/False feature to factor
+Step 2: Using shotsNum to cluster the unsuccessful shots as HockeyTrain.m and prepare to build k-means elobow
+
+```{r,warning=FALSE}
+shots <- readRDS("shots_stats_goal.df.Rds")#Need to make sure this is grabb
+library(data.table)
+library(mltools)
+shotsNum <- shots
+shotsNum$goalieScreened = as.factor(shotsNum$goalieScreened)
+shotsNum$oppDefenders = as.factor(shotsNum$oppDefenders)
+shotsNum$sameDefenders = as.factor(shotsNum$sameDefenders)
+shotsNum <- shotsNum[,1:11]
+shotsNum <- one_hot(dt = as.data.table(shotsNum))
+
+h.df <- shotsNum %>%
+mutate_all(as.numeric)%>% mutate_all(scale) 
+hockeyTrain.m <- as.matrix(h.df)
+
+my.pca<-prcomp(hockeyTrain.m,retx=TRUE)
+plot(my.pca, type="line")
+```
+
+#### Build k-means elbow
+
+Step 1: using wssplot and cluster set(HockeyTrain.m) to build k-means by cluster
+Step2: Analysis k-means elbow which is 10
+```{r,warning=FALSE}
+wssplot <- function(data, nc=25, seed=20){
+wss <- data.frame(cluster=1:nc, quality=c(0))
+for (i in 1:nc){
+set.seed(seed)
+wss[i,2] <- kmeans(data, centers=i)$tot.withinss}
+ggplot(data=wss,aes(x=cluster,y=quality)) +
+geom_line() +
+ggtitle("Quality of k-means by Cluster")
+}
+wssplot(hockeyTrain.m, nc=25)
+
+```
+
+#### Visualizes means and build Heatmap without goal
+
+Step 1: Visualizes means in 7 clusters which clusters of sizes are 4, 15, 15, 3, 32, 14, 22
+Step 2: Using ggplot to visualize my cluster means.
+Step 3: Analysis Heatmap: The high relavent in heatmap is pcudistance in cluster 2 and cluster 5, puckAngle has high respective in cluster 1 and cluster 1 and 3.
+Result: I plan to analysis puck distance influence in Hockey game in the future analysis. 
+
+```{r,warning=FALSE}
+library("gplots")
+library("ggbiplot")
+
+km <- kmeans(hockeyTrain.m,7)
+km
+
+par(mar = c(1, 1, 1, 1))
+heatmap.2(km$centers,
+scale = "column",
+dendrogram = "column",
+Colv=FALSE,
+cexCol=1.0,
+main = "Kmeans Cluster Centers", trace ="none")
+```
+
+
+### Discussion of results
+
+Based on the analysis that I performed, according to the quality of k mean by cluster graph, we can easily see that the elbow was found at 7. So I choose to divide the data set into 7 different clusters, and then visualize them in the form of heatmap. By taking a look into the heatmap, I got the conclusion that the high relavent in heatmap is pcudistance in cluster 2 and cluster 5, puckAngle has high respective in cluster 1 and cluster 1 and 3. 
+
+
+## Analysis: Question 2 
+
+### How to visualize clusters with PCA without goal?
+
+
+### Data Preparation
+
+I use the same data set as Analysis Question 1.
+
+### Analysis: Methods and Results  
+
+#### Visualize clusters with PCA without goal
+
+```{r}
+
+# Create a biplot for PC1 and PC2 colored by cluster
+t<-1.2*max(abs(my.pca$x[,1:2]))
+
+p <- ggbiplot(my.pca,
+choices=c(1,2),
+alpha=.1,
+scale = 0,
+groups=as.factor(km$cluster))
+p <- p + scale_colour_hue()
+ggtitle('Biplot of PC1 and PC2')+
+xlim(-t,t) + ylim(-t,t)
+p
+```
+
+### Discussion of results
+
+According to the pca graph, we can see that there are a lot of arrows points toward the point sets. For example, "goalie_screen_FALSE" and "oppDefender_1" are pointing into the group 3 meaning that these two features explain the most behaviors in that group. And also, the features of "puckedAngle", "rightHanded", and "goalieAngle" are pointing into the group 6 meaning that these features explain the most behaviors inside group 6. 
+
+
+
+## Summary and next steps
+
+For the next step, I am going to use the given function in analysis code to determine the distance of each player and how they reach the goal. 
+
+

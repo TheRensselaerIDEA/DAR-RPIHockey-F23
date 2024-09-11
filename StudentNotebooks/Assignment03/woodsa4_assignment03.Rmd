@@ -1,0 +1,204 @@
+---
+title: "Status Notebook Assignment 03"
+author: "Ashley Woodson"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+subtitle: "Hockey Analytics"
+---
+
+## Instructions (DELETE BEFORE SUBMISSION)
+
+* Use this notebook is a template for your biweekly project status assignment. 
+* Use the sections starting with **BiWeekly Work Summary** as your outline for your submitted notebook.
+* Summarize ALL of your work in this notebook; **if you don't show and/or link to your work here, it doesn't exist for us!**
+
+1. Create a new copy of this notebook in the `AssignmentX` sub-directory of your team's github repository using the following naming convention
+
+   * `rcsid_assignmentX.Rmd` and `rcsid_assignmentX.pdf`
+   * For example, `bennek_assignment03.Rmd`
+
+2. Document **all** the work you did on your assigned project this week **using the outline below.** 
+
+3. You MUST include figures and/or tables to illustrate your work. *Screen shots are okay*, but include something!
+
+4. You MUST include links to other important resources (knitted HTMl files, Shiny apps). See the guide below for help.
+
+5. Commit the source (`.Rmd`) and knitted (`.html`) versions of your notebook and push to github
+
+6. **Submit a pull request.** Please notify Dr. Erickson if you don't see your notebook merged within one day. 
+
+7. **DO NOT MERGE YOUR PULL REQUESTS YOURSELF!!**
+
+See the Grading Rubric for guidance on how the contents of this notebook will be graded on LMS or GradeScope. 
+
+## Weekly Work Summary	
+
+* RCS ID: woodsa4
+* Project Name: woodsa4_assignment03
+* Summary of work since last week 
+
+    * The focus of this work is to study and experiment with both heatmaply and heatmap.2 to determine the best graphical representation of our hockey data to identify the following:
+      * The best format from both heatmap.2 and heatmaply to visualize our dataset.
+      * Which features are the most/least useful in predicting goal outcomes?
+      * Is it possible, with some method of dendrogram clustering, to see what features may define different types of goal success or failure? 
+
+* NEW: Summary of github issues added and worked 
+
+    * Issues that you've submitted
+    * Issues that you've self-assigned and addressed
+    
+* Summary of github commits 
+
+    * branch name - dar-woodsa4
+    * include browsable links to all external files on github
+    * Include links to shared Shiny apps
+    
+* List of presentations,  papers, or other outputs
+
+    * Include browsable links
+    
+* List of references (if necessary) 
+* Indicate any use of group shared code base
+* Indicate which parts of your described work were done by you or as part of joint efforts
+
+* **Required:** Provide illustrating figures and/or tables
+
+## Personal Contribution	
+
+* Clearly defined, unique contribution(s) done by you: code, ideas, writing...
+* Include github issues you've addressed
+
+## Analysis: Question 1 (Provide short name)
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+```{r, result01_data}
+# Include all data processing code (if necessary), clearly commented
+
+```
+
+### Analysis: Methods and results
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result01_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+
+```
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+
+## Analysis: Question 2 (Provide short name)
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+```{r, result02_data}
+# Include all data processing code (if necessary), clearly commented
+
+```
+
+### Analysis: Methods and Results  
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result02_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+
+```
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+
+## Analysis: Question 3 (Provide short name)
+
+### Question being asked 
+
+_Provide in natural language a statement of what question you're trying to answer_
+
+### Data Preparation
+
+_Provide in natural language a description of the data you are using for this analysis_
+
+_Include a step-by-step description of how you prepare your data for analysis_
+
+_If you're re-using dataframes prepared in another section, simply re-state what data you're using_
+
+```{r, result03_data}
+# Include all data processing code (if necessary), clearly commented
+
+```
+
+### Analysis methods used  
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result03_analysis}
+# Include all analysis code, clearly commented
+# If not possible, screen shots are acceptable. 
+# If your contributions included things that are not done in an R-notebook, 
+#   (e.g. researching, writing, and coding in Python), you still need to do 
+#   this status notebook in R.  Describe what you did here and put any products 
+#   that you created in github. If you are writing online documents (e.g. overleaf 
+#   or google docs), you can include links to the documents in this notebook 
+#   instead of actual text.
+
+```
+
+
+### Discussion of results
+
+_Provide in natural language a clear discussion of your observations._
+
+## Summary and next steps
+
+_Provide in natural language a clear summary and your proposed next steps._
+

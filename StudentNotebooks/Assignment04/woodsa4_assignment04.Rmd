@@ -1,0 +1,337 @@
+---
+title: "DAR F23 Project Status Notebook 04"
+author: "Ashley Woodson"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+subtitle: "Hockey Analytics"
+---
+
+## Weekly Work Summary	
+
+* RCS ID: woodsa4
+* Project Name: Hockey Analytics
+* File names: woodsa4_assignment04.Rmd/.pdf
+* Summary of work since last week 
+
+    * Using a variety of colors and scaling methods for the pheatmap function to improve intuitive readability.
+    * Apply the udpated data from the rest of the group
+
+* NEW: Summary of github issues added and worked 
+
+    * Not applicable
+    
+* Summary of github commits 
+
+    * branch name - dar-woodsa4
+    * include browsable links to all external files on github - none
+    * Include links to shared Shiny apps - none
+    
+* List of presentations,  papers, or other outputs
+
+    * Include browsable links - none
+    
+* List of references (if necessary) 
+* Indicate any use of group shared code base
+    
+    I have used the dataset created by Amy and Dr. Morgan
+    https://github.rpi.edu/DataINCITE/Hockey_Fall_2023/blob/dar-enyena/StudentData/shots_stats_goal.df.Rds
+    is the location of the most updated file at the moment I've typed this. 
+    
+* Indicate which parts of your described work were done by you or as part of joint efforts
+
+    All the code in this notebook was created as an individual effort by me, however the dataframes I read in were created by Amy and Dr. Morgan's efforts.
+
+* **Required:** Provide illustrating figures and/or tables
+
+  The figures produced in the code below will be attached at the bottom of the pdf submitted to gradescope.
+
+## Personal Contribution	
+
+* Clearly defined, unique contribution(s) done by you: code, ideas, writing...
+
+  * I have created the pheatmaps and all associated analysis
+
+## Package Installation and Data Loading
+
+Here I have included the package installation and loading required for this notebook.
+
+```{r setup_1, echo = FALSE, eval=FALSE}
+
+# Install required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.rstudio.com"
+options(repos = r)
+
+if (!require("tidyverse")) {
+   install.packages("tidyverse")
+}
+if (!require("tidymodels")) {
+   install.packages("tidymodels")
+}
+if (!require("glmnet")) {
+   install.packages("glmnet")
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+}
+if (!require("heatmaply")) {
+install.packages("heatmaply")
+}
+if (!require("pheatmap")) {
+install.packages("pheatmap")
+}
+```
+
+```{r}
+#load the required packages
+library(knitr)
+library(tidyverse)
+library(tidymodels)
+library(ggplot2)
+library(gplots)
+library(heatmaply)
+library(pheatmap)
+```
+
+
+
+## Analysis: Alternate scaling for pheatmap
+
+### Question being asked: Which scaling type is most appropriate?
+
+Comparing scaling methods:
+  1. Scaling the data using min/max instead of mean/standard deviation
+  2. Applying teh scale function externally to the pheatmap function
+  3. Allowing the pheaetmap to scale automatically (my original work)
+
+Which will produce the most legible visual & accurately depict the data?
+
+### Data Preparation
+
+This is the dataframe Amy provided from before Dr. Morgan had introduced the new features. It is essentially the original data with the added goal outcomes to include the miss/defender block/goalie block in addition to goals.
+
+```{r, result01_data}
+shots_stats_goal.df <- read_rds("shots_stats_goal.df.Rds")
+
+head(shots_stats_goal.df)
+
+# custom function to implement min max scaling
+minMax <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+ 
+#separate the features from the goals outcome
+features <- subset(shots_stats_goal.df, select = -outcomes)
+goal <- subset(shots_stats_goal.df , select = outcomes)
+
+#convert all the non-numeric features to numeric
+#done manually since the only non-numeric feature is known to be goalieScreened
+features$goalieScreened <- as.numeric(features$goalieScreened)
+goal$outcomes <- as.numeric(goal$outcomes)
+
+#normalise data using custom function
+mmScale <- as.data.frame(lapply(features, minMax))
+
+#formatting the traditionally scaled features
+pfeatures <- as.matrix(features, rownames.force = TRUE)
+
+#formatting the min max scaled features
+pmmScale <-  as.matrix(mmScale, rownames.force = TRUE)
+
+#manually scale the data for the last pheatmap option
+manScale <- scale(pfeatures)
+
+#Create the colors for the pheatmap side column identifying the goal outcomes
+# Defender blocked, goal, goalie blocked, miss
+resultColors <- list(outcomes=c("yellow", "black", "green", "red"))
+
+```
+
+### Analysis: Methods and results
+
+Here is where I create the various pheatmaps. They are located at the bottom of the pdf submission to gradescope since they are too large to load automatically.
+
+```{r, result01_analysis}
+#make a png pheatmap using the goals as a row annotation 
+#and scaling by column
+#use cutree_rows to divide the clusters
+
+
+#First pheatmap uses the builtin scaling
+png("pheatmapBuiltin.png", height = 1000, width = 800)
+pheatmap(pfeatures,
+         scale = 'column',
+         main = "PHeatmap builtin scaling",
+         col = colorRampPalette(c("blue", "white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal,
+         annotation_colors = resultColors
+         )
+
+
+#second heatmap uses the manual min/max scaling
+png("pheatmapMinMax.png", height = 1000, width = 800)
+pheatmap(pmmScale,
+         scale = 'none',
+         main = "PHeatmap min/max scaling",
+         col = colorRampPalette(c("blue","white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal,
+         annotation_colors = resultColors
+         )
+
+#third heatmap uses the manual mean scaling external from the function
+png("pheatmapManMean.png", height = 1000, width = 800)
+pheatmap(manScale,
+         scale = 'none',
+         main = "PHeatmap manual scaling",
+         col = colorRampPalette(c("blue", "white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal,
+         annotation_colors = resultColors
+         )
+```
+
+### Discussion of results
+
+The min/max scaled pheatmap seems to be overvaluing the categorical variables, since they have essentially been pushed to the extremes. With only 0 or 1, they become more pronounced than the continuous variables which tend towards 0.5 when min/max scaled. This has affected the pheatmap's ability to cluster the data, such that goals have become a bit scattered. This does not seem to be an effective method. 
+
+Both the manual and builtin scaling methods have produced the same clustering, although slightly different color scales. They both apply subtraction of the mean and division by standard deviation, but the builtin also applies some additional calculations that appear to tend the data more towards the mean, probably with the intention of muting outliers. 
+
+From this, I have concluded that the manual scaling is most effective to move forward with.
+
+## Analysis: Question 2 Removing categorical variables
+
+### Question being asked 
+
+We discussed in class whether removing the categorical variables would produce a beneficial analysis for the continuous variables in the min/max scale.
+
+### Data Preparation
+
+This section begins with the min/max scaled matrix from Question 1.
+
+```{r, result02_data}
+# Include all data processing code (if necessary), clearly commented
+
+#remove the two most extremely categorical variables
+#handedness and screened
+mm2 <- subset(mmScale , select = -goalieScreened )
+mm2 <- subset(mm2 , select = -rightHanded )
+
+head(mm2)
+
+#remove all categorical variables
+mm4 <- subset(mm2 , select = -sameDefenders )
+mm4 <- subset(mm4 , select = -oppDefenders )
+
+head(mm4)
+
+
+```
+
+### Analysis: Methods and Results  
+
+_Describe in natural language a statement of the analysis you're trying to do_
+
+_Provide clearly commented analysis code; include code for tables and figures!_
+
+```{r, result02_analysis}
+
+#this uses the data with half the categoricals (2 value) having been removed
+png("pheatmapNoTF.png", height = 1000, width = 800)
+pheatmap(mm2,
+         scale = 'none',
+         main = "PHeatmap min/max scaling with less categorical variables",
+         col = colorRampPalette(c("blue","white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal,
+         annotation_colors = resultColors
+         )
+
+#This has all categorical variables removed
+png("pheatmapNoCategorical.png", height = 1000, width = 800)
+pheatmap(mm4,
+         scale = 'none',
+         main = "PHeatmap min/max scaling with no categorical variables",
+         col = colorRampPalette(c("blue", "white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal,
+         annotation_colors = resultColors
+         )
+
+```
+
+### Discussion of results
+
+To see if the removeal of the categoriacal variables would show any new analysis for the continuous variables, I have removed them in stages. The partial removal does not appear to contribute anything useful, but the complete removal reiterates some things we had seen in the mean/standard deviation scaling. Principally, that the most goals are scored when the goalie and puck angles differ greatly. While this shows some more extreme coloring than the mean scale, it isn't demonstrating any new insight.
+
+## Analysis: Question 3 New Data Frame
+
+### Question being asked 
+
+After concluding above that the best representation is the manual mean scaling, how does this apply to the new data which includes new variables?
+
+### Data Preparation
+
+Using the new variables coded for by Dr. Morgan.
+
+```{r, result03_data}
+shots_stats_goal2.df <- read_rds("shots_stats_goal.df-2.Rds")
+
+head(shots_stats_goal2.df)
+
+#separate the features from the goals outcome
+features2 <- subset(shots_stats_goal2.df, select = -outcomes.goal)
+features2 <- subset(features2, select = -shotOutcome)
+
+goal2 <- subset(shots_stats_goal2.df , select = outcomes.goal)
+
+#remove the closestDef since the type of defender is non-numeric nor 
+#can it logically be converted easily
+features2 <- subset(features2, select = -closestDef)
+
+features2 <- scale(features2)
+
+#Create the colors for the pheatmap side column identifying the goal outcomes
+# Defender blocked, goal, goalie blocked, miss
+resultColors <- list(outcomes=c("white","yellow", "black", "green", "red"))
+
+```
+
+### Analysis methods used  
+
+Give the manually scaled pheatmap with the newest data 
+
+```{r, echo=TRUE,fig.keep='none',result03_analysis}
+
+#This is the most up-to-date data frame
+png("pheatmapNewData.png", height = 1000, width = 800)
+pheatmap(features2,
+         scale = 'none',
+         main = "PHeatmap manual scaling new data",
+         col = colorRampPalette(c("blue", "white", "red"))(75),
+         cutree_rows = 5,
+         annotation_row = goal2,
+         annotation_colors = resultColors
+         )
+
+
+```
+
+
+### Discussion of results
+
+The new data appears to desire a different number of clusters than is currently being applied. There are two clusters which contain only a few shots, defined rather sharply by high defDist and shooterSpeed values, respectively. Neither of these contain goals, so perhaps this shows, although rather niche, new modes of faliure we had not seen in the previous dataset. 
+
+## Summary and next steps
+
+Most of this work was performed before the updated dataframe had been released, so much of the analysis is now out-of date, but provides some direction towards further steps. Alternative scaling and other methods can be applied to this new data, following the format already established.
+
+Additionally, my next steps will include analysis using the max/min scaling on Jeff's categorized versions of the continuous variables. This will hopefully mitigate the preference distortions seen in the above min/max scaled graph, since when it is entirely categorical variables the scales should self-balance. 
+
+
+
